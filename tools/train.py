@@ -14,9 +14,9 @@ from torch.backends import cudnn
 sys.path.append('.')
 from config import cfg
 from data import make_data_loader
-from engine.trainer import do_train, do_train_with_center
+from engine.trainer import do_train, do_train_with_center, do_train_with_circle
 from modeling import build_model
-from layers import make_loss, make_loss_with_center
+from layers import make_loss, make_loss_with_center, make_loss_with_circle
 from solver import make_optimizer, make_optimizer_with_center, WarmupMultiStepLR
 
 from utils.logger import setup_logger
@@ -111,6 +111,48 @@ def train(cfg):
             loss_func,
             num_query,
             start_epoch     # add for using self trained model
+        )
+
+    elif cfg.MODEL.IF_WITH_CIRCLE == 'yes':
+        print('Train with circle loss, the loss type is', cfg.MODEL.METRIC_LOSS_TYPE)
+        loss_func, circle_criterion = make_loss_with_circle(cfg, num_classes)
+        optimizer = make_optimizer(cfg, model)
+
+        # Add for using self trained model
+        if cfg.MODEL.PRETRAIN_CHOICE == 'self':
+            start_epoch = eval(cfg.MODEL.PRETRAIN_PATH.split('/')[-1].split('.')[0].split('_')[-1])
+            print('Start epoch:', start_epoch)
+            path_to_optimizer = cfg.MODEL.PRETRAIN_PATH.replace('model', 'optimizer')
+            print('Path to the checkpoint of optimizer:', path_to_optimizer)
+            path_to_center_param = cfg.MODEL.PRETRAIN_PATH.replace('model', 'center_param')
+            print('Path to the checkpoint of center_param:', path_to_center_param)
+            # path_to_optimizer_center = cfg.MODEL.PRETRAIN_PATH.replace('model', 'optimizer_center')
+            # print('Path to the checkpoint of optimizer_center:', path_to_optimizer_center)
+            model.load_state_dict(torch.load(cfg.MODEL.PRETRAIN_PATH))
+            optimizer.load_state_dict(torch.load(path_to_optimizer))
+            circle_criterion.load_state_dict(torch.load(path_to_center_param))
+            # optimizer.load_state_dict(torch.load(path_to_optimizer_center))
+            scheduler = WarmupMultiStepLR(optimizer, cfg.SOLVER.STEPS, cfg.SOLVER.GAMMA, cfg.SOLVER.WARMUP_FACTOR,
+                                          cfg.SOLVER.WARMUP_ITERS, cfg.SOLVER.WARMUP_METHOD, start_epoch)
+        elif cfg.MODEL.PRETRAIN_CHOICE == 'imagenet':
+            start_epoch = 0
+            scheduler = WarmupMultiStepLR(optimizer, cfg.SOLVER.STEPS, cfg.SOLVER.GAMMA, cfg.SOLVER.WARMUP_FACTOR,
+                                          cfg.SOLVER.WARMUP_ITERS, cfg.SOLVER.WARMUP_METHOD)
+        else:
+            print('Only support pretrain_choice for imagenet and self, but got {}'.format(cfg.MODEL.PRETRAIN_CHOICE))
+
+        do_train_with_circle(
+            cfg,
+            model,
+            circle_criterion,
+            train_loader,
+            val_loader,
+            optimizer,
+            scheduler,  # modify for using self trained model
+            loss_func,
+            num_query,
+            start_epoch  # add for using self trained model
+
         )
     else:
         print("Unsupported value for cfg.MODEL.IF_WITH_CENTER {}, only support yes or no!\n".format(cfg.MODEL.IF_WITH_CENTER))

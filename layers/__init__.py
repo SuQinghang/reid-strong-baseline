@@ -8,7 +8,7 @@ import torch.nn.functional as F
 
 from .triplet_loss import TripletLoss, CrossEntropyLabelSmooth
 from .center_loss import CenterLoss
-
+from .circle_loss import CircleLoss
 
 def make_loss(cfg, num_classes):    # modified by gu
     sampler = cfg.DATALOADER.SAMPLER
@@ -88,3 +88,54 @@ def make_loss_with_center(cfg, num_classes):    # modified by gu
             print('expected METRIC_LOSS_TYPE with center should be center, triplet_center'
                   'but got {}'.format(cfg.MODEL.METRIC_LOSS_TYPE))
     return loss_func, center_criterion
+
+def make_loss_with_circle(cfg, num_classes):
+    '''
+    2020/10/17
+    circle loss without weight-learned parameters
+    :param cfg:
+    :param num_classes:
+    :return:
+    '''
+    # if cfg.MODEL.NAME == 'resnet18' or cfg.MODEL.NAME == 'resnet34':
+    #     feat_dim = 512
+    # else:
+    #     feat_dim = 2048
+
+    if cfg.MODEL.METRIC_LOSS_TYPE == 'circle':
+        circle_criterion = CircleLoss(cfg.HEADS.MARGIN, cfg.HEADS.GAMMA)
+
+    elif cfg.MODEL.METRIC_LOSS_TYPE == 'triplet_circle':
+        triplet = TripletLoss(cfg.SOLVER.MARGIN)
+        circle_criterion = CircleLoss(cfg.HEADS.MARGIN, cfg.HEADS.GAMMA)
+
+    else:
+        print('expected METRIC_LOSS_TYPE with center should be circle, triplet_circle'
+              'but got {}'.format(cfg.MODEL.METRIC_LOSS_TYPE))
+
+    if cfg.MODEL.IF_LABELSMOOTH == 'on':
+        xent = CrossEntropyLabelSmooth(num_classes=num_classes)
+        print("label smooth on, numclasses:", num_classes)
+
+    def loss_func(score, feat, target):
+        if cfg.MODEL.METRIC_LOSS_TYPE == 'circle':
+            if cfg.MODEL.IF_LABELSMOOTH == 'on':
+                return xent(score, target)+ \
+                    cfg.HEADS.CIRCLE_LOSS_WEIGHT * circle_criterion(feat, target)
+            else:
+                return F.cross_entropy(score, target) + \
+                    cfg.HEADS.CIRCLE_LOSS_WEIGHT * circle_criterion(feat, target)
+
+        elif cfg.MODEL.METRIC_LOSS_TYPE == 'triplet_center':
+            if cfg.MODEL.IF_LABELSMOOTH == 'on':
+                return xent(score, target) + \
+                    triplet(feat, target)[0] + \
+                    cfg.HEADS.CIRCLE_LOSS_WEIGHT * circle_criterion(feat, target)
+            else:
+                return F.cross_entropy(score, target) + \
+                    triplet(feat, target)[0] + \
+                    cfg.HEADS.CIRCLE_LOSS_WEIGHT * circle_criterion(feat, target)
+        else:
+            print('expected METRIC_LOSS_TYPE with circle should be circle, triplet_circle'
+                  'but got {}'.format(cfg.MODEL.METRIC_LOSS_TYPE))
+        return loss_func, circle_criterion

@@ -34,6 +34,7 @@ _C.MODEL.PRETRAIN_CHOICE = 'imagenet'
 _C.MODEL.NECK = 'bnneck'
 # If train loss include center loss, options: 'yes' or 'no'. Loss with center loss has different optimizer configuration
 _C.MODEL.IF_WITH_CENTER = 'no'
+_C.MODEL.IF_WITH_CIRCLE = 'no'
 # The loss type of metric loss
 # options:['triplet'](without center loss) or ['center','triplet_center'](with center loss)
 _C.MODEL.METRIC_LOSS_TYPE = 'triplet'

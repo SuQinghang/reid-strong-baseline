@@ -96,7 +96,7 @@ def create_supervised_trainer_with_center(model, center_criterion, optimizer, op
 
     return Engine(_update)
 
-def create_supervised_trainer_with_circle(model, center_criterion, optimizer, loss_fn, cetner_loss_weight,
+def create_supervised_trainer_with_circle(model, circle_criterion, optimizer, loss_fn,
                               device=None) :
     if device:
         if torch.cuda.device_count()>1:
@@ -314,11 +314,10 @@ def do_train_with_center(
 def do_train_with_circle(
         cfg,
         model,
-        center_criterion,
+        circle_criterion,
         train_loader,
         val_loader,
         optimizer,
-        optimizer_center,
         scheduler,
         loss_fn,
         num_query,
@@ -333,8 +332,7 @@ def do_train_with_circle(
 
     logger = logging.getLogger("reid_baseline.train")
     logger.info("Start training")
-    trainer = create_supervised_trainer_with_circle(model, center_criterion, optimizer, optimizer_center, loss_fn,
-                                                    cfg.SOLVER.CENTER_LOSS_WEIGHT, device=device)
+    trainer = create_supervised_trainer_with_circle(model, circle_criterion, optimizer, loss_fn, device=device)
     evaluator = create_supervised_evaluator(model, metrics={
         'r1_mAP': R1_mAP(num_query, max_rank=50, feat_norm=cfg.TEST.FEAT_NORM)}, device=device)
     checkpointer = ModelCheckpoint(output_dir, cfg.MODEL.NAME, checkpoint_period, n_saved=10, require_empty=False)
